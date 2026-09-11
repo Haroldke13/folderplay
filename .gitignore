@@ -1,0 +1,9 @@
+# Generated at install / runtime — never commit these
+library.json
+codec_report.json
+*.log
+browser-profile/
+__pycache__/
+*.pyc
+*.tmp
+.DS_Store

@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Media Library
+GenericName=Music and Video Player
+Comment=Play your indexed MP3 and MP4 files, grouped by folder
+Exec=@EXEC@
+Icon=medialib
+Terminal=false
+Categories=AudioVideo;Player;Audio;Video;
+Keywords=music;video;player;mp3;mp4;media;library;
+StartupNotify=true
+StartupWMClass=medialib
+
+Actions=Reindex;
+
+[Desktop Action Reindex]
+Name=Rescan media folders
+Exec=@EXEC@ --reindex

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# medialib — launch the local media library player as a desktop app window.
+set -euo pipefail
+
+APP_DIR="$HOME/.local/share/medialib"
+INDEX="$APP_DIR/library.json"
+PROFILE="$APP_DIR/browser-profile"
+LOG="$APP_DIR/server.log"
+
+usage() {
+  cat <<USAGE
+medialib — play your indexed mp3/mp4 files
+
+  medialib              launch the player app window
+  medialib --reindex    rescan \$HOME, then launch
+  medialib --scan-only  rescan and exit (no window)
+  medialib --serve      run the server in this terminal (open the URL yourself)
+  medialib --help       this message
+USAGE
+}
+
+REINDEX=0 SCAN_ONLY=0 SERVE_ONLY=0
+for a in "$@"; do
+  case "$a" in
+    --reindex)   REINDEX=1 ;;
+    --scan-only) REINDEX=1; SCAN_ONLY=1 ;;
+    --serve)     SERVE_ONLY=1 ;;
+    -h|--help)   usage; exit 0 ;;
+    *) echo "unknown option: $a" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [ ! -f "$INDEX" ] || [ "$REINDEX" = 1 ]; then
+  echo "Indexing media under $HOME ..." >&2
+  python3 "$APP_DIR/index_media.py"
+fi
+[ "$SCAN_ONLY" = 1 ] && exit 0
+
+if [ "$SERVE_ONLY" = 1 ]; then
+  exec python3 "$APP_DIR/server.py"
+fi
+
+# pick a browser that can render the UI and decode mp3/mp4
+BROWSER=""
+for c in google-chrome google-chrome-stable chromium chromium-browser; do
+  if command -v "$c" >/dev/null 2>&1; then BROWSER="$c"; break; fi
+done
+if [ -z "$BROWSER" ]; then
+  echo "No Chrome/Chromium found. Run 'medialib --serve' and open the URL in any browser." >&2
+  exit 1
+fi
+
+# start the server and capture its one-line URL
+exec 3< <(python3 "$APP_DIR/server.py" --print-url 2>"$LOG")
+SERVER_PID=$!
+cleanup() { kill "$SERVER_PID" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+
+if ! read -r -t 15 URL <&3 || [ -z "${URL:-}" ]; then
+  echo "Server failed to start. Log:" >&2; cat "$LOG" >&2; exit 1
+fi
+
+mkdir -p "$PROFILE"
+# --app gives a chromeless window; a dedicated profile keeps this a
+# standalone app whose process lifetime matches the window.
+# Chrome --app windows take their icon from the page favicon and downsample
+# it to 16x16, which looks blurry in the taskbar. Replace it once the window
+# appears. Best-effort: never blocks or fails the launch.
+"$APP_DIR/set-window-icon.sh" medialib "$APP_DIR/icon-wm.dat" >/dev/null 2>&1 &
+
+"$BROWSER" \
+  --app="$URL" \
+  --user-data-dir="$PROFILE" \
+  --no-first-run \
+  --no-default-browser-check \
+  --window-size=1280,820 \
+  --class=medialib \
+  >>"$LOG" 2>&1 || true
+
+# browser window closed -> trap stops the server

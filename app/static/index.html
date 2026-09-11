@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media Library</title>
+<link rel="icon" type="image/png" sizes="256x256" href="/static/icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/static/icon-64.png">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161923; --panel2:#1c2030; --line:#272c3a;
+    --fg:#e8eaf0; --dim:#8b93a7; --accent:#5b8cff; --accent2:#7ee0c0;
+    --row:#1a1e2b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.45 system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  header{
+    display:flex;align-items:center;gap:12px;padding:10px 14px;
+    background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  header h1 span{color:var(--accent)}
+  #search{
+    flex:1;max-width:520px;padding:7px 11px;border-radius:7px;
+    border:1px solid var(--line);background:var(--bg);color:var(--fg);font-size:13px;
+  }
+  #search:focus{outline:none;border-color:var(--accent)}
+  .stats{color:var(--dim);font-size:12px;white-space:nowrap;margin-left:auto}
+  .filters{display:flex;gap:4px}
+  .filters button{
+    background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+    padding:6px 11px;border-radius:6px;cursor:pointer;font-size:12px;
+  }
+  .filters button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  main{flex:1;display:flex;min-height:0}
+  aside{
+    width:290px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--line);
+    overflow-y:auto;padding:8px;
+  }
+  .folder{
+    padding:7px 9px;border-radius:6px;cursor:pointer;margin-bottom:2px;
+  }
+  .folder:hover{background:var(--panel2)}
+  .folder.on{background:var(--accent);color:#fff}
+  .folder .fname{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .folder .fpath{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;direction:rtl;text-align:left}
+  .folder.on .fpath{color:#dbe4ff}
+  .folder .cnt{float:right;font-size:11px;color:var(--dim);margin-left:6px}
+  .folder.on .cnt{color:#fff}
+  .sep{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;
+    padding:10px 9px 4px;font-weight:600}
+  .newpl{padding:6px 9px;border-radius:6px;cursor:pointer;margin-bottom:2px;
+    font-size:12.5px;color:var(--dim);border:1px dashed var(--line)}
+  .newpl:hover{color:var(--fg);border-color:var(--accent)}
+
+  section#list{flex:1;overflow-y:auto;min-width:0}
+  #videoWrap{background:#000;display:none;border-bottom:1px solid var(--line)}
+  #videoWrap.show{display:block}
+  #video{width:100%;max-height:52vh;display:block;background:#000}
+  .bar{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);
+    padding-right:10px}
+  .crumb{flex:1;min-width:0;padding:9px 14px;color:var(--dim);font-size:12px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini{background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+    padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11.5px;white-space:nowrap}
+  .mini:hover{border-color:var(--accent);color:var(--fg)}
+  .row{
+    display:flex;align-items:center;gap:10px;padding:8px 14px;
+    border-bottom:1px solid #1b1f2b;cursor:pointer;
+  }
+  .row:hover{background:var(--row)}
+  .row.playing{background:#1e2a4d}
+  .row.playing .t{color:var(--accent2)}
+  .row.gone{opacity:.5;cursor:default}
+  .row.drop{border-top:2px solid var(--accent)}
+  .ico{width:20px;text-align:center;flex:0 0 auto;color:var(--dim);font-size:13px}
+  .row.playing .ico{color:var(--accent2)}
+  .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+  .meta{color:var(--dim);font-size:11.5px;flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .star{background:none;border:0;color:#4a5266;cursor:pointer;font-size:14px;padding:0 2px;
+    flex:0 0 auto;line-height:1}
+  .star:hover{color:var(--accent)}
+  .star.on{color:var(--accent)}
+  .pact{display:flex;gap:2px;flex:0 0 auto}
+  .pact button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:12px;
+    padding:0 3px;line-height:1}
+  .pact button:hover{color:var(--accent2)}
+  .empty{padding:40px;text-align:center;color:var(--dim)}
+
+  footer{
+    flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line);
+    padding:9px 14px;display:flex;align-items:center;gap:12px;
+  }
+  .now{min-width:0;flex:1}
+  .now .n1{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .now .n2{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctrl{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .ctrl button{
+    background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+    width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:13px;
+    display:grid;place-items:center;
+  }
+  .ctrl button:hover{border-color:var(--accent)}
+  .ctrl button.big{width:42px;height:42px;background:var(--accent);border-color:var(--accent);font-size:15px}
+  .ctrl button.on{color:var(--accent2);border-color:var(--accent2)}
+  .ctrl button.wide{width:auto;border-radius:17px;padding:0 12px;font-size:12px;gap:5px}
+  .ctrl button.hide{display:none}
+  .seek{display:flex;align-items:center;gap:9px;flex:2;min-width:180px}
+  .seek input[type=range]{flex:1;accent-color:var(--accent)}
+  .time{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:42px}
+  .vol{display:flex;align-items:center;gap:6px;flex:0 0 110px}
+  .vol input{width:100%;accent-color:var(--accent)}
+
+  /* equalizer */
+  #eq{display:none;flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line);
+    padding:8px 14px 10px}
+  #eq.show{display:block}
+  .eqhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .eqtitle{font-size:12.5px;font-weight:600}
+  .eqhead select{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+    border-radius:6px;padding:5px 8px;font-size:12px}
+  .eqhead select:focus{outline:none;border-color:var(--accent)}
+  .sw{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);cursor:pointer}
+  .sw input{accent-color:var(--accent2)}
+  .eqnote{font-size:11.5px;color:var(--dim)}
+  .eqbands{display:flex;gap:4px;justify-content:space-between;max-width:520px;margin-top:6px}
+  .band{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .band input[type=range]{
+    -webkit-appearance:slider-vertical;appearance:slider-vertical;
+    writing-mode:vertical-lr;direction:rtl;
+    width:22px;height:96px;accent-color:var(--accent);cursor:pointer;
+  }
+  .band .db{font-size:11px;color:var(--accent2);font-variant-numeric:tabular-nums}
+  .band .hz{font-size:10.5px;color:var(--dim)}
+  .eqboost{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;
+    padding-top:9px;border-top:1px solid var(--line);max-width:640px}
+  .eqboost input[type=range]{width:170px;accent-color:var(--accent2)}
+  .eqboost input[type=number]{width:66px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--fg);border-radius:6px;padding:4px 6px;font-size:12px;
+    font-variant-numeric:tabular-nums}
+  .eqboost input[type=number]:focus{outline:none;border-color:var(--accent)}
+  .boostval{font-size:12px;color:var(--accent2);font-variant-numeric:tabular-nums;min-width:56px}
+  .warn{font-size:11.5px;color:var(--accent);display:none}
+  .warn.show{display:inline}
+
+  /* sheet + toast */
+  .veil{position:fixed;inset:0;background:rgba(8,10,14,.66);display:none;
+    align-items:center;justify-content:center;z-index:20}
+  .veil.show{display:flex}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px;width:min(360px,92vw);max-height:76vh;overflow-y:auto}
+  .sheet h2{font-size:13.5px;margin:0 0 10px;font-weight:600}
+  .sheet .opt{padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;
+    border:1px solid var(--line);margin-bottom:5px}
+  .sheet .opt:hover{background:var(--panel2);border-color:var(--accent)}
+  .sheet .opt .cnt{float:right;color:var(--dim);font-size:11px}
+  .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+    background:var(--panel2);border:1px solid var(--accent);border-radius:8px;
+    padding:9px 14px;font-size:12.5px;max-width:min(760px,94vw);display:none;
+    z-index:30;cursor:pointer;word-break:break-all}
+  .toast.show{display:block}
+  @media (max-width:820px){
+    aside{width:190px}
+    .vol{display:none}
+    footer{flex-wrap:wrap}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>♫ Media <span>Library</span></h1>
+  <input id="search" placeholder="Search all files…  (press /)">
+  <div class="filters">
+    <button data-k="all" class="on">All</button>
+    <button data-k="audio">MP3</button>
+    <button data-k="video">MP4</button>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <aside id="folders"></aside>
+  <section id="list">
+    <div id="videoWrap"><video id="video" controls></video></div>
+    <div class="bar">
+      <div class="crumb" id="crumb"></div>
+      <div class="acts" id="acts"></div>
+    </div>
+    <div id="rows"></div>
+  </section>
+</main>
+
+<div id="eq">
+  <div class="eqhead">
+    <span class="eqtitle">🎛 Equalizer</span>
+    <label class="sw" title="Bypass: flattens every band"><input type="checkbox" id="eqOn"> On</label>
+    <select id="eqPreset" title="Preset"></select>
+    <button class="mini" id="eqReset" title="All bands back to 0 dB">Reset</button>
+    <span class="eqnote" id="eqNote"></span>
+    <button class="mini" id="eqClose" style="margin-left:auto">✕</button>
+  </div>
+  <div class="eqbands" id="eqBands"></div>
+  <div class="eqboost">
+    <span class="eqtitle">Boost</span>
+    <input type="range" id="boostRange" min="0" max="20" step="0.1" value="0"
+      title="Extra gain on top of the volume slider">
+    <input type="number" id="boostNum" min="0" max="20" step="0.1" value="0"
+      title="Exact boost in dB (0–20)">
+    <span class="boostval" id="boostTxt">+0.0 dB</span>
+    <button class="mini" id="boostReset" title="Back to 0 dB (unity)">0 dB</button>
+    <span class="warn" id="boostWarn">High boost may distort — protect your hearing.</span>
+  </div>
+</div>
+
+<footer>
+  <div class="ctrl">
+    <button id="prev" title="Previous (P)">⏮</button>
+    <button id="play" class="big" title="Play/Pause (Space)">▶</button>
+    <button id="next" title="Next (N)">⏭</button>
+    <button id="shuffle" title="Shuffle (S)">🔀</button>
+    <button id="repeat" title="Repeat (R)">🔁</button>
+    <button id="vlc" title="Play in VLC - plays any format, converted or not (V)">🎞</button>
+    <button id="favBtn" title="Favourite this track (F)">☆</button>
+    <button id="eqBtn" title="Equalizer (E)">🎛</button>
+    <button id="resume" class="wide hide" title="Resume where you left off">⟲ Resume</button>
+  </div>
+  <div class="now">
+    <div class="n1" id="nowTitle">Nothing playing</div>
+    <div class="n2" id="nowFolder">Pick a folder on the left, then click a track</div>
+  </div>
+  <div class="seek">
+    <span class="time" id="cur">0:00</span>
+    <input type="range" id="bar" value="0" min="0" max="1000" step="1">
+    <span class="time" id="dur">0:00</span>
+  </div>
+  <div class="vol">
+    <span style="color:var(--dim);font-size:12px">🔊</span>
+    <input type="range" id="vol" min="0" max="100" value="85">
+  </div>
+</footer>
+
+<audio id="audio"></audio>
+
+<div class="veil" id="veil"><div class="sheet"><h2 id="sheetTitle"></h2><div id="sheetBody"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const q = s => document.querySelector(s);
+const audio = q('#audio'), video = q('#video');
+let LIB = null, FOLDERS = [], FILES = [];
+let view = [];              // ids currently listed
+let curFolder = null;       // null = all
+let kind = 'all';
+let curId = null, curEl = null;
+let shuffle = false, repeat = false;
+let durCache = {};
+try { durCache = JSON.parse(localStorage.getItem('medialib.dur') || '{}'); } catch(e){}
+
+// playlists / favourites / resume state
+const FAVKEY = '__favourites__';
+let PL = {reserved:FAVKEY, favourites:[], playlists:[], exportDir:''};
+let favPaths = new Set();
+let curPl = null;           // selected playlist name, or null
+let byPath = new Map();
+let RESUME = null, pendingSeek = 0, lastMark = 0;
+try { RESUME = JSON.parse(localStorage.getItem('medialib.last') || 'null'); } catch(e){}
+
+const fmt = s => {
+  if (!isFinite(s) || s < 0) return '0:00';
+  s = Math.floor(s);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), x = s%60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`
+           : `${m}:${String(x).padStart(2,'0')}`;
+};
+const mb = b => b >= 1e9 ? (b/1e9).toFixed(1)+' GB' : Math.round(b/1e6)+' MB';
+const src = id => `/media/${id}?t=${encodeURIComponent(TOKEN)}`;
+const api = (p, o) => fetch(p + (p.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN), o);
+
+async function post(path, body){
+  const r = await api(path, {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify(body)});
+  let d = {};
+  try { d = await r.json(); } catch(e){ throw new Error('bad response'); }
+  if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+  return d;
+}
+
+async function boot(){
+  const r = await fetch(`/api/library?t=${encodeURIComponent(TOKEN)}`);
+  if (!r.ok) { q('#rows').innerHTML = '<div class="empty">Could not load library index.</div>'; return; }
+  LIB = await r.json();
+  FILES = LIB.files; FOLDERS = LIB.folders;
+  byPath = new Map();
+  for (const f of FILES){
+    byPath.set(f.path, f.id);
+    // index_media.py may stream a converted copy; the original path still
+    // identifies the same track (old playlists / resume entries use it)
+    if (f.source_path && !byPath.has(f.source_path)) byPath.set(f.source_path, f.id);
+  }
+  q('#stats').textContent =
+    `${LIB.total} files · ${LIB.audio} mp3 · ${LIB.video} mp4 · ${LIB.folders.length} folders`;
+  await loadPlaylists();
+  drawFolders(); select(null);
+  const v = localStorage.getItem('medialib.vol');
+  if (v !== null) q('#vol').value = v;
+  applyVol();
+  eqInit();
+  offerResume();
+}
+
+async function loadPlaylists(){
+  try {
+    const r = await api('/api/playlists');
+    if (r.ok) setPL(await r.json());
+  } catch(e){ toast('Could not load playlists: ' + e.message); }
+}
+
+function setPL(d){
+  PL = d;
+  favPaths = new Set((PL.favourites || []).map(i => i.path));
+  if (curPl !== null && curPl !== FAVKEY && !PL.playlists.some(p => p.name === curPl)) curPl = null;
+}
+
+async function plPost(body){
+  const d = await post('/api/playlists', body);
+  setPL(d); drawFolders(); render(); syncFav();
+  return d;
+}
+
+const plItems = name => name === FAVKEY
+  ? (PL.favourites || [])
+  : ((PL.playlists || []).find(p => p.name === name) || {items:[]}).items;
+const plLabel = name => name === FAVKEY ? '★ Favourites' : name;
+
+function drawFolders(){
+  const box = q('#folders');
+  box.innerHTML = '';
+  const term = searchTerm();
+
+  box.appendChild(mkSep('Playlists'));
+  const favRow = mkPl(FAVKEY, '★ Favourites', 'starred tracks', term);
+  if (favRow) box.appendChild(favRow);
+  for (const p of (PL.playlists || [])){
+    const row = mkPl(p.name, p.name, 'playlist', term);
+    if (row) box.appendChild(row);
+  }
+  const add = document.createElement('div');
+  add.className = 'newpl';
+  add.textContent = '＋ New playlist…';
+  add.onclick = newPlaylist;
+  box.appendChild(add);
+
+  box.appendChild(mkSep('Folders'));
+  const allCount = kind === 'all' ? LIB.total
+                                  : FILES.reduce((n, f) => n + (passes(f.id, term) ? 1 : 0), 0);
+  const all = document.createElement('div');
+  all.className = 'folder' + (curFolder === null && curPl === null ? ' on' : '');
+  all.innerHTML = `<div class="fname">★ All files<span class="cnt">${allCount}</span></div>
+                   <div class="fpath">${kind === 'all' ? 'every indexed folder'
+                                                        : 'every folder with ' + kindLabel()}</div>`;
+  all.onclick = () => select(null);
+  box.appendChild(all);
+
+  let shownFolders = 0;
+  for (const f of FOLDERS){
+    const n = countIds(f.ids, term);
+    const selected = curPl === null && curFolder === f.path;
+    // an empty folder stays visible only while it is the current selection,
+    // so the sidebar never hides what you are looking at
+    if (!n && !selected) continue;
+    if (n) shownFolders++;
+    const d = document.createElement('div');
+    d.className = 'folder' + (selected ? ' on' : '');
+    const tag = kind !== 'all'
+      ? `${n}${kind === 'audio' ? '♫' : '▦'}`
+      : (f.audio && f.video ? `${f.audio}♫ ${f.video}▦` : f.audio ? `${f.audio}♫` : `${f.video}▦`);
+    d.innerHTML = `<div class="fname">${esc(f.label)}<span class="cnt">${tag}</span></div>
+                   <div class="fpath">${esc(f.rel)}</div>`;
+    d.title = f.rel + '  —  ' + mb(f.bytes);
+    d.onclick = () => select(f.path);
+    box.appendChild(d);
+  }
+  q('#stats').textContent = kind === 'all'
+    ? `${LIB.total} files · ${LIB.audio} mp3 · ${LIB.video} mp4 · ${LIB.folders.length} folders`
+    : `${allCount} files · ${allCount} ${kindLabel()} · ${shownFolders} folders`;
+}
+
+function mkSep(text){
+  const s = document.createElement('div');
+  s.className = 'sep'; s.textContent = text;
+  return s;
+}
+
+function mkPl(name, label, sub, term){
+  const items = plItems(name);
+  const gone = items.filter(i => i.missing).length;
+  const n = kind === 'all' ? items.length
+                           : items.filter(i => !i.missing && passes(i.id, term)).length;
+  const selected = curPl === name;
+  if (!n && !selected && kind !== 'all') return null;   // nothing of this kind in here
+  const d = document.createElement('div');
+  d.className = 'folder' + (selected ? ' on' : '');
+  d.innerHTML = `<div class="fname">${esc(label)}<span class="cnt">${n}</span></div>
+                 <div class="fpath">${esc(gone && kind === 'all' ? sub + ' · ' + gone + ' missing' : sub)}</div>`;
+  d.onclick = () => selectPl(name);
+  return d;
+}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---- kind filter ---------------------------------------------------
+// The MP3/MP4 buttons filter the sidebar as well as the list. Counts are
+// always recomputed from the real file records rather than trusting the
+// per-folder tallies in the index.
+const searchTerm = () => q('#search').value.trim().toLowerCase();
+
+function passes(id, term){
+  const f = FILES[id];
+  if (!f) return false;
+  if (kind !== 'all' && f.kind !== kind) return false;
+  // a search term only narrows the sidebar while a kind filter is on, so
+  // "All" keeps behaving exactly as it always did
+  if (kind !== 'all' && term && !f.name.toLowerCase().includes(term)) return false;
+  return true;
+}
+const countIds = (ids, term) => kind === 'all' ? ids.length
+                                               : ids.filter(i => passes(i, term)).length;
+const kindLabel = () => kind === 'audio' ? 'mp3' : 'mp4';
+
+function select(path){
+  curFolder = path; curPl = null; q('#search').value = '';
+  drawFolders(); render();
+}
+
+function selectPl(name){
+  curPl = name; curFolder = null; q('#search').value = '';
+  drawFolders(); render();
+}
+
+function render(){
+  const term = q('#search').value.trim().toLowerCase();
+  let ids, items = null;
+  if (term){
+    ids = FILES.filter(f => f.name.toLowerCase().includes(term)).map(f => f.id);
+  } else if (curPl !== null){
+    items = plItems(curPl).filter(it => kind === 'all' ||
+                                        (FILES[it.id] && FILES[it.id].kind === kind));
+    ids = items.filter(it => !it.missing).map(it => it.id);
+  } else if (curFolder === null){
+    ids = FILES.map(f => f.id);
+  } else {
+    ids = (FOLDERS.find(f => f.path === curFolder) || {ids:[]}).ids;
+  }
+  if (kind !== 'all' && !items) ids = ids.filter(i => FILES[i].kind === kind);
+  view = ids;
+
+  q('#crumb').textContent = term
+    ? `Search “${term}” — ${ids.length} match${ids.length===1?'':'es'}`
+    : (curPl !== null ? plLabel(curPl) + ` — ${(items||[]).length}`
+      : (curFolder === null ? `All files — ${ids.length}` : shortPath(curFolder) + ` — ${ids.length}`));
+  drawActs(term);
+
+  const rows = q('#rows');
+  if (!ids.length && !(items && items.length)){
+    rows.innerHTML = kind === 'all'
+      ? '<div class="empty">Nothing here.</div>'
+      : `<div class="empty">No ${kindLabel()} files here.<br>Pick “All” above, or choose another folder.</div>`;
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  const list = items || ids.map(id => ({id, missing:false, path:FILES[id].path}));
+  list.forEach((it, idx) => {
+    const f = FILES[it.id];
+    const d = document.createElement('div');
+    d.className = 'row' + (!it.missing && it.id === curId ? ' playing' : '') + (it.missing ? ' gone' : '');
+    d.dataset.id = it.id;
+    if (it.missing){
+      d.innerHTML = `<div class="ico">⚠</div>
+                     <div class="t">${esc(it.name || it.path)}</div>
+                     <div class="meta">not in the index</div>`;
+      d.title = it.path + '  —  moved, deleted, or not reindexed yet';
+    } else {
+      const dd = durCache[it.id] ? fmt(durCache[it.id]) : '';
+      d.innerHTML = `<div class="ico">${f.kind==='video'?'▦':'♫'}</div>
+                     <div class="t">${esc(f.stem)}</div>
+                     <div class="meta">${dd ? dd+' · ' : ''}${mb(f.size)}</div>`;
+      d.onclick = () => play(it.id);
+      d.appendChild(mkStar(f.path));
+    }
+    if (items) d.appendChild(mkPlActions(idx, list.length, it, d));
+    frag.appendChild(d);
+  });
+  rows.innerHTML = ''; rows.appendChild(frag);
+}
+
+function mkStar(path){
+  const b = document.createElement('button');
+  const on = favPaths.has(path);
+  b.className = 'star' + (on ? ' on' : '');
+  b.textContent = on ? '★' : '☆';
+  b.title = on ? 'Remove from favourites' : 'Add to favourites';
+  b.onclick = e => { e.stopPropagation(); toggleFav(path, !on); };
+  return b;
+}
+
+function mkPlActions(idx, len, it, rowEl){
+  const wrap = document.createElement('div');
+  wrap.className = 'pact';
+  const mk = (glyph, title, fn) => {
+    const b = document.createElement('button');
+    b.textContent = glyph; b.title = title;
+    b.onclick = e => { e.stopPropagation(); fn(); };
+    wrap.appendChild(b);
+  };
+  mk('↑', 'Move up',   () => moveItem(curPl, idx, idx-1));
+  mk('↓', 'Move down', () => moveItem(curPl, idx, idx+1));
+  mk('✕', 'Remove from this playlist', () => removeItem(curPl, idx));
+
+  // drag to reorder
+  rowEl.draggable = true;
+  rowEl.ondragstart = e => {
+    dragFrom = idx;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(idx)); } catch(_){}
+  };
+  rowEl.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+                            rowEl.classList.add('drop'); };
+  rowEl.ondragleave = () => rowEl.classList.remove('drop');
+  rowEl.ondrop = e => {
+    e.preventDefault(); rowEl.classList.remove('drop');
+    if (dragFrom !== null && dragFrom !== idx) moveItem(curPl, dragFrom, idx);
+    dragFrom = null;
+  };
+  rowEl.ondragend = () => { rowEl.classList.remove('drop'); dragFrom = null; };
+  return wrap;
+}
+let dragFrom = null;
+
+function drawActs(term){
+  const box = q('#acts');
+  box.innerHTML = '';
+  const mk = (label, title, fn) => {
+    const b = document.createElement('button');
+    b.className = 'mini'; b.textContent = label; b.title = title;
+    b.onclick = fn; box.appendChild(b);
+  };
+  if (curId !== null) mk('＋ Track', 'Add the playing track to a playlist',
+                         () => pickPlaylist('Add “' + FILES[curId].stem + '” to…',
+                                            n => addTo(n, [ref(curId)])));
+  if (curPl === null && !term && curFolder !== null)
+    mk('＋ Folder', 'Add every file in this folder to a playlist',
+       () => pickPlaylist('Add ' + view.length + ' files to…',
+                          n => addTo(n, view.map(ref))));
+  if (curPl !== null){
+    mk('✎ Rename', 'Rename this playlist', () => renamePlaylist(curPl));
+    mk('🗑 Delete', 'Delete this playlist', () => deletePlaylist(curPl));
+  }
+  mk('⤓ .m3u8', 'Export what you are looking at as an m3u8 playlist', exportHere);
+}
+
+const ref = id => ({id, path: FILES[id] ? FILES[id].path : null});
+
+async function toggleFav(path, on){
+  try { await plPost({action:'favourite', item:{path}, on}); }
+  catch(e){ toast('Could not update favourites: ' + e.message); }
+}
+
+function syncFav(){
+  const b = q('#favBtn');
+  const on = curId !== null && FILES[curId] && favPaths.has(FILES[curId].path);
+  b.textContent = on ? '★' : '☆';
+  b.classList.toggle('on', !!on);
+}
+
+async function addTo(name, refs){
+  try {
+    const before = plItems(name).length;
+    await plPost({action:'add', name, items: refs});
+    const added = plItems(name).length - before;
+    toast(added ? `Added ${added} to ${plLabel(name)}.`
+                : `Already in ${plLabel(name)}.`);
+  } catch(e){ toast('Could not add: ' + e.message); }
+}
+
+async function moveItem(name, from, to){
+  const items = plItems(name).slice();
+  if (to < 0 || to >= items.length) return;
+  const [x] = items.splice(from, 1);
+  items.splice(to, 0, x);
+  try { await plPost({action:'set', name, items: items.map(i => ({id:i.id, path:i.path}))}); }
+  catch(e){ toast('Could not reorder: ' + e.message); }
+}
+
+async function removeItem(name, idx){
+  const items = plItems(name).slice();
+  items.splice(idx, 1);
+  try { await plPost({action:'set', name, items: items.map(i => ({id:i.id, path:i.path}))}); }
+  catch(e){ toast('Could not remove: ' + e.message); }
+}
+
+async function newPlaylist(){
+  const name = (prompt('New playlist name:') || '').trim();
+  if (!name) return null;
+  try { await plPost({action:'create', name}); selectPl(name); return name; }
+  catch(e){ toast('Could not create: ' + e.message); return null; }
+}
+
+async function renamePlaylist(name){
+  if (name === FAVKEY) { toast('Favourites cannot be renamed.'); return; }
+  const to = (prompt('Rename playlist:', name) || '').trim();
+  if (!to || to === name) return;
+  try { curPl = to; await plPost({action:'rename', name, to}); }
+  catch(e){ curPl = name; toast('Could not rename: ' + e.message); }
+}
+
+async function deletePlaylist(name){
+  if (name === FAVKEY) { toast('Favourites cannot be deleted.'); return; }
+  if (!confirm(`Delete the playlist “${name}”? The media files are not touched.`)) return;
+  try { curPl = null; await plPost({action:'delete', name}); select(null); }
+  catch(e){ toast('Could not delete: ' + e.message); }
+}
+
+function pickPlaylist(title, cb){
+  const veil = q('#veil');
+  q('#sheetTitle').textContent = title;
+  const body = q('#sheetBody');
+  body.innerHTML = '';
+  const opt = (label, count, fn) => {
+    const d = document.createElement('div');
+    d.className = 'opt';
+    d.innerHTML = `${esc(label)}<span class="cnt">${count}</span>`;
+    d.onclick = () => { closeSheet(); fn(); };
+    body.appendChild(d);
+  };
+  opt('★ Favourites', plItems(FAVKEY).length, () => cb(FAVKEY));
+  for (const p of (PL.playlists || [])) opt(p.name, p.items.length, () => cb(p.name));
+  const mkNew = document.createElement('div');
+  mkNew.className = 'opt';
+  mkNew.textContent = '＋ New playlist…';
+  mkNew.onclick = async () => { closeSheet(); const n = await newPlaylist(); if (n) cb(n); };
+  body.appendChild(mkNew);
+  const cancel = document.createElement('div');
+  cancel.className = 'opt';
+  cancel.style.color = 'var(--dim)';
+  cancel.textContent = 'Cancel';
+  cancel.onclick = closeSheet;
+  body.appendChild(cancel);
+  veil.classList.add('show');
+}
+function closeSheet(){ q('#veil').classList.remove('show'); }
+q('#veil').onclick = e => { if (e.target === q('#veil')) closeSheet(); };
+
+function durationMap(){
+  const m = {};
+  for (const id in durCache){ const f = FILES[id]; if (f) m[f.path] = durCache[id]; }
+  return m;
+}
+
+async function exportHere(){
+  const term = q('#search').value.trim();
+  let payload;
+  if (curPl !== null && !term){
+    payload = {name: curPl, title: curPl === FAVKEY ? 'Favourites' : curPl};
+  } else {
+    const title = term ? 'search-' + term
+                : curFolder === null ? 'all-files'
+                : (FOLDERS.find(f => f.path === curFolder) || {label:'view'}).label;
+    if (!view.length) { toast('Nothing to export.'); return; }
+    payload = {title, items: view.map(ref)};
+  }
+  payload.durations = durationMap();
+  try {
+    const d = await post('/api/export', payload);
+    toast(`Exported ${d.tracks} track${d.tracks===1?'':'s'} → ${d.path}`);
+  } catch(e){ toast('Export failed: ' + e.message); }
+}
+
+let toastTimer = null;
+function toast(msg){
+  const t = q('#toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 9000);
+}
+q('#toast').onclick = () => q('#toast').classList.remove('show');
+
+function shortPath(p){
+  const h = LIB.home;
+  return p.startsWith(h) ? '~' + p.slice(h.length) : p;
+}
+
+function play(id, seekTo){
+  const f = FILES[id];
+  if (!f) return;
+  if (curEl){ curEl.pause(); }
+  curId = id;
+  const isVid = f.kind === 'video';
+  curEl = isVid ? video : audio;
+  q('#videoWrap').classList.toggle('show', isVid);
+  if (!isVid) { video.removeAttribute('src'); video.load(); }
+
+  pendingSeek = seekTo || 0;
+  if (eqActive()) eqAttach(curEl);   // routes this element through the EQ graph, once
+  curEl.src = src(id);
+  curEl.play().catch(err => {
+    q('#nowFolder').textContent = 'Playback error: ' + err.message;
+  });
+  q('#nowTitle').textContent = f.stem;
+  q('#nowFolder').textContent = shortPath(f.folder);
+  document.title = f.stem + ' — Media Library';
+  applyVol();
+  syncFav();
+  markLast(0);
+  render();
+}
+
+function step(delta){
+  if (!view.length) return;
+  if (shuffle){
+    play(view[Math.floor(Math.random()*view.length)]);
+    return;
+  }
+  let i = view.indexOf(curId);
+  if (i === -1) { play(view[0]); return; }
+  i = (i + delta + view.length) % view.length;
+  play(view[i]);
+}
+
+function applyVol(){
+  const v = q('#vol').value / 100;
+  audio.volume = v; video.volume = v;
+}
+
+// ---- resume --------------------------------------------------------
+function markLast(t){
+  if (curId === null || !FILES[curId]) return;
+  try {
+    localStorage.setItem('medialib.last', JSON.stringify(
+      {path: FILES[curId].path, stem: FILES[curId].stem, time: t}));
+  } catch(e){}
+}
+
+function offerResume(){
+  const b = q('#resume');
+  if (!RESUME || !RESUME.path || !(RESUME.time > 5)) return;
+  const id = byPath.get(RESUME.path);
+  if (id === undefined) return;
+  b.classList.remove('hide');
+  b.title = `Resume “${RESUME.stem || RESUME.path}” at ${fmt(RESUME.time)}`;
+  b.onclick = () => { b.classList.add('hide'); play(id, RESUME.time); };
+  q('#nowFolder').textContent = `Resume “${RESUME.stem || ''}” at ${fmt(RESUME.time)} — or pick a track`;
+}
+
+// ---- equalizer -----------------------------------------------------
+// Spotify's six peaking bands. Values are dB per band, -12…+12.
+const EQ_BANDS = [60, 150, 400, 1000, 2400, 15000];
+const EQ_PRESETS = {
+  'Flat':            [0,0,0,0,0,0],
+  'Acoustic':        [4.0, 3.0, 1.5, 1.5, 3.0, 2.5],
+  'Bass Booster':    [6.0, 4.5, 2.0, 0.0, 0.0, 0.0],
+  'Bass Reducer':    [-6.0,-4.5,-2.0, 0.0, 0.0, 0.0],
+  'Classical':       [4.0, 3.0,-1.0,-1.0, 2.0, 3.0],
+  'Dance':           [5.0, 3.5, 1.0,-1.0, 2.0, 3.0],
+  'Deep':            [5.0, 3.0, 1.5,-1.0,-3.0,-5.0],
+  'Electronic':      [4.5, 3.0,-1.0, 1.0, 2.5, 4.0],
+  'Hip-Hop':         [5.5, 4.0, 1.0,-0.5, 1.5, 2.5],
+  'Jazz':            [3.5, 2.5,-1.0, 0.5, 2.0, 3.0],
+  'Latin':           [4.5, 2.5,-2.0,-2.0, 2.5, 4.0],
+  'Loudness':        [6.0, 4.0,-1.5,-2.0, 1.0, 5.0],
+  'Lounge':          [-2.0, 0.5, 2.5, 2.0, 0.5,-1.5],
+  'Piano':           [2.5, 1.0, 1.5, 2.5, 3.0, 2.0],
+  'Pop':             [-1.5, 1.0, 3.5, 3.0, 1.0,-1.5],
+  'R&B':             [5.5, 4.0,-1.0, 1.5, 3.0, 2.5],
+  'Rock':            [5.0, 3.0,-1.0,-0.5, 2.5, 4.0],
+  'Small Speakers':  [6.0, 4.0, 1.5, 0.0,-1.5,-3.0],
+  'Spoken Word':     [-3.0,-1.0, 2.0, 3.5, 3.0, 0.5],
+  'Treble Booster':  [0.0, 0.0, 0.0, 2.0, 4.0, 6.0],
+  'Treble Reducer':  [0.0, 0.0, 0.0,-2.0,-4.0,-6.0],
+  'Vocal Booster':   [-2.0,-1.0, 3.0, 3.5, 2.5,-1.0],
+};
+const CUSTOM = 'Custom';
+
+let ctx = null;
+const chains = new Map();   // element -> {src, filters} — built at most ONCE per element
+let eqOn = false, eqPreset = 'Flat', eqGains = EQ_PRESETS.Flat.slice(), eqOpen = false;
+let eqAnim = null;
+let boostDb = 0;                       // 0…20 dB of extra gain, after the bands
+const BOOST_MAX = 20, BOOST_WARN = 10;
+const dbToGain = db => Math.pow(10, db / 20);   // +20 dB = 10x amplitude
+// The graph is only attached once something needs it; once attached it stays.
+const eqActive = () => eqOn || boostDb > 0;
+
+function eqLoad(){
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem('medialib.eq') || 'null'); } catch(e){}
+  if (!s) return;
+  eqOn = !!s.on; eqOpen = !!s.open;
+  boostDb = Math.max(0, Math.min(BOOST_MAX, Math.round((+s.boost || 0) * 10) / 10));
+  eqPreset = (s.preset in EQ_PRESETS || s.preset === CUSTOM) ? s.preset : 'Flat';
+  if (Array.isArray(s.gains) && s.gains.length === EQ_BANDS.length)
+    eqGains = s.gains.map(g => Math.max(-12, Math.min(12, +g || 0)));
+}
+function eqSave(){
+  try { localStorage.setItem('medialib.eq',
+    JSON.stringify({on:eqOn, preset:eqPreset, gains:eqGains, open:eqOpen, boost:boostDb})); } catch(e){}
+}
+
+function eqInit(){
+  eqLoad();
+  const box = q('#eqBands');
+  box.innerHTML = '';
+  EQ_BANDS.forEach((hz, i) => {
+    const d = document.createElement('div');
+    d.className = 'band';
+    const label = hz >= 1000 ? (hz/1000) + ' kHz' : hz + ' Hz';
+    d.innerHTML = `<input type="range" min="-12" max="12" step="0.1" value="${eqGains[i]}"
+                     title="${label}" data-b="${i}">
+                   <div class="db" data-db="${i}">${eqGains[i].toFixed(1)} dB</div>
+                   <div class="hz">${label}</div>`;
+    box.appendChild(d);
+  });
+  const sel = q('#eqPreset');
+  for (const name of Object.keys(EQ_PRESETS)){
+    const o = document.createElement('option');
+    o.value = name; o.textContent = name; sel.appendChild(o);
+  }
+  const custom = document.createElement('option');
+  custom.value = CUSTOM; custom.textContent = CUSTOM; sel.appendChild(custom);
+  sel.value = eqPreset;
+  q('#eqOn').checked = eqOn;
+  q('#eq').classList.toggle('show', eqOpen);
+  q('#eqBtn').classList.toggle('on', eqOn);
+  for (const inp of box.querySelectorAll('input[type=range]')){
+    inp.oninput = e => {
+      if (eqAnim) { cancelAnimationFrame(eqAnim); eqAnim = null; }
+      const i = +e.target.dataset.b;
+      eqGains[i] = +e.target.value;
+      eqPreset = CUSTOM; sel.value = CUSTOM;
+      eqPaint(); eqApply(); eqSave();
+    };
+  }
+  q('#boostRange').value = boostDb;
+  q('#boostNum').value = boostDb.toFixed(1);
+  q('#boostRange').oninput = e => setBoost(e.target.value);
+  q('#boostNum').oninput  = e => setBoost(e.target.value, true);
+  q('#boostNum').onchange = e => { setBoost(e.target.value); q('#boostNum').value = boostDb.toFixed(1); };
+  q('#boostReset').onclick = () => setBoost(0);
+  eqPaint(); eqNote(); paintBoost();
+}
+
+function paintBoost(){
+  q('#boostTxt').textContent = (boostDb >= 0 ? '+' : '') + boostDb.toFixed(1) + ' dB';
+  q('#boostWarn').classList.toggle('show', boostDb > BOOST_WARN);
+  q('#boostRange').value = boostDb;
+}
+
+/** Clamp, sync both controls, apply to every chain and remember it. */
+function setBoost(raw, fromNumber){
+  const v = parseFloat(raw);
+  if (!isFinite(v)){                       // junk typed into the number box
+    if (!fromNumber) q('#boostNum').value = boostDb.toFixed(1);
+    return;                                // graph untouched
+  }
+  boostDb = Math.max(0, Math.min(BOOST_MAX, Math.round(v * 10) / 10));
+  if (!fromNumber || v !== boostDb) q('#boostNum').value = boostDb.toFixed(1);
+  paintBoost();
+  if (boostDb > 0) eqAttach(curEl);        // may need the graph now
+  eqApply(); eqSave();
+}
+
+function eqPaint(){
+  const box = q('#eqBands');
+  EQ_BANDS.forEach((hz, i) => {
+    const s = box.querySelector(`input[data-b="${i}"]`);
+    const d = box.querySelector(`[data-db="${i}"]`);
+    if (s) s.value = eqGains[i];
+    if (d) d.textContent = (eqGains[i] >= 0 ? '+' : '') + eqGains[i].toFixed(1) + ' dB';
+  });
+}
+
+function eqNote(msg){
+  q('#eqNote').textContent = msg !== undefined ? msg
+    : (eqOn ? '' : 'bypassed — all bands flat');
+}
+
+/** Build (once) and return the filter chain for a media element. */
+function eqAttach(el){
+  if (!el) return null;
+  if (!ctx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); } catch(e){ ctx = null; return null; }
+  }
+  if (ctx.state === 'suspended') ctx.resume().catch(()=>{});
+  let ch = chains.get(el);
+  if (!ch){
+    let source;
+    try {
+      // createMediaElementSource() throws if called twice on the same element,
+      // so this must happen exactly once per element for the life of the page.
+      source = ctx.createMediaElementSource(el);
+    } catch(e){
+      return null;              // leave the element on its normal output path
+    }
+    const filters = EQ_BANDS.map(hz => {
+      const b = ctx.createBiquadFilter();
+      b.type = 'peaking';
+      b.frequency.value = hz;
+      b.Q.value = 1.0;          // ~1 octave wide: neighbours overlap, no combing
+      b.gain.value = 0;
+      return b;
+    });
+    const boost = ctx.createGain();
+    boost.gain.value = 1;
+    const limiter = ctx.createDynamicsCompressor();   // catches the boosted peaks
+    limiter.knee.value = 0;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    source.connect(filters[0]);
+    for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i+1]);
+    filters[filters.length - 1].connect(boost);
+    boost.connect(limiter);
+    limiter.connect(ctx.destination);                 // must reach destination
+    ch = {source, filters, boost, limiter};
+    chains.set(el, ch);
+  }
+  eqApply();
+  return ch;
+}
+
+function eqApply(){
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const boost = dbToGain(boostDb);
+  for (const ch of chains.values()){
+    ch.filters.forEach((b, i) => {
+      const g = eqOn ? eqGains[i] : 0;      // bypass = flat, graph stays connected
+      try { b.gain.setTargetAtTime(g, t, 0.02); }
+      catch(e){ b.gain.value = g; }
+    });
+    try { ch.boost.gain.setTargetAtTime(boost, t, 0.03); }
+    catch(e){ ch.boost.gain.value = boost; }
+    // at 0 dB the limiter is transparent (ratio 1, threshold 0) so unboosted
+    // playback sounds exactly as it did before; above it, it limits.
+    ch.limiter.threshold.value = boostDb > 0 ? -3 : 0;
+    ch.limiter.ratio.value     = boostDb > 0 ? 20 : 1;
+  }
+}
+
+function eqSetPreset(name, animate){
+  const target = (EQ_PRESETS[name] || EQ_PRESETS.Flat).slice();
+  eqPreset = name;
+  q('#eqPreset').value = name;
+  if (!animate){ eqGains = target; eqPaint(); eqApply(); eqSave(); return; }
+  const from = eqGains.slice(), t0 = performance.now(), ms = 260;
+  if (eqAnim) cancelAnimationFrame(eqAnim);
+  const tick = now => {
+    const k = Math.min(1, (now - t0) / ms);
+    const e = 1 - Math.pow(1 - k, 3);
+    eqGains = from.map((v, i) => Math.round((v + (target[i] - v) * e) * 10) / 10);
+    eqPaint(); eqApply();
+    if (k < 1) eqAnim = requestAnimationFrame(tick);
+    else { eqAnim = null; eqGains = target.slice(); eqPaint(); eqApply(); eqSave(); }
+  };
+  eqAnim = requestAnimationFrame(tick);
+}
+
+q('#eqPreset').onchange = e => { if (e.target.value !== CUSTOM) eqSetPreset(e.target.value, true); };
+q('#eqReset').onclick = () => eqSetPreset('Flat', true);
+q('#eqOn').onchange = e => {
+  eqOn = e.target.checked;
+  q('#eqBtn').classList.toggle('on', eqOn);
+  if (eqOn) eqAttach(curEl);
+  eqApply(); eqNote(); eqSave();
+};
+q('#eqClose').onclick = () => eqToggle(false);
+q('#eqBtn').onclick = () => eqToggle();
+
+function eqToggle(force){
+  eqOpen = force === undefined ? !q('#eq').classList.contains('show') : force;
+  q('#eq').classList.toggle('show', eqOpen);
+  eqSave();
+}
+
+// ---- wiring --------------------------------------------------------
+for (const el of [audio, video]){
+  el.addEventListener('timeupdate', () => {
+    if (el !== curEl) return;
+    q('#cur').textContent = fmt(el.currentTime);
+    if (el.duration) q('#bar').value = (el.currentTime/el.duration)*1000;
+    if (Date.now() - lastMark > 4000){ lastMark = Date.now(); markLast(el.currentTime); }
+  });
+  el.addEventListener('loadedmetadata', () => {
+    if (el !== curEl) return;
+    q('#dur').textContent = fmt(el.duration);
+    if (pendingSeek && isFinite(el.duration) && pendingSeek < el.duration){
+      try { el.currentTime = pendingSeek; } catch(e){}
+    }
+    pendingSeek = 0;
+    if (curId !== null && isFinite(el.duration)){
+      durCache[curId] = el.duration;
+      try { localStorage.setItem('medialib.dur', JSON.stringify(durCache)); } catch(e){}
+    }
+  });
+  el.addEventListener('play',  () => {
+    if (el !== curEl) return;
+    q('#play').textContent = '❚❚';
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+  });
+  el.addEventListener('pause', () => { if (el===curEl){ q('#play').textContent = '▶'; markLast(el.currentTime); } });
+  el.addEventListener('ended', () => {
+    if (el !== curEl) return;
+    if (repeat){ el.currentTime = 0; el.play(); } else step(1);
+  });
+  el.addEventListener('error', () => {
+    if (el === curEl) q('#nowFolder').textContent = 'Could not play this file (missing or unsupported codec).';
+  });
+}
+
+q('#play').onclick = () => { if (ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+                             if (!curEl) { if (view.length) play(view[0]); return; }
+                             curEl.paused ? curEl.play() : curEl.pause(); };
+q('#next').onclick = () => step(1);
+q('#prev').onclick = () => { if (curEl && curEl.currentTime > 3) curEl.currentTime = 0; else step(-1); };
+q('#vlc').onclick = async () => {
+  if (curId === null) { q('#nowFolder').textContent = 'Pick a track first.'; return; }
+  q('#nowFolder').textContent = 'Opening in VLC…';
+  try {
+    const r = await fetch('/api/external?t=' + encodeURIComponent(TOKEN), {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id: curId, player: 'vlc' })
+    });
+    const d = await r.json().catch(() => ({}));
+    q('#nowFolder').textContent = r.ok
+      ? 'Playing in ' + (d.player || 'VLC') + ' — ' + (d.file || '')
+      : 'Could not launch player: ' + (d.error || r.status);
+  } catch (e) { q('#nowFolder').textContent = 'Could not launch player: ' + e.message; }
+};
+
+q('#shuffle').onclick = e => { shuffle = !shuffle; e.currentTarget.classList.toggle('on', shuffle); };
+q('#repeat').onclick  = e => { repeat  = !repeat;  e.currentTarget.classList.toggle('on', repeat); };
+q('#favBtn').onclick = () => {
+  if (curId === null || !FILES[curId]) { toast('Nothing playing to favourite.'); return; }
+  toggleFav(FILES[curId].path, !favPaths.has(FILES[curId].path));
+};
+q('#bar').oninput = e => { if (curEl && curEl.duration) curEl.currentTime = (e.target.value/1000)*curEl.duration; };
+q('#vol').oninput = () => { applyVol(); try{ localStorage.setItem('medialib.vol', q('#vol').value);}catch(e){} };
+q('#search').oninput = () => { if (kind !== 'all') drawFolders(); render(); };
+for (const b of document.querySelectorAll('.filters button')){
+  b.onclick = () => {
+    kind = b.dataset.k;
+    document.querySelectorAll('.filters button').forEach(x => x.classList.toggle('on', x === b));
+    drawFolders();          // sidebar follows the filter too
+    render();               // playback is untouched: curEl keeps playing
+  };
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+    if (e.key === 'Escape') { if (e.target.id === 'search') { e.target.value=''; render(); } e.target.blur(); }
+    return;
+  }
+  if (e.key === 'Escape' && q('#veil').classList.contains('show')){ closeSheet(); return; }
+  const k = e.key.toLowerCase();
+  if (e.code === 'Space'){ e.preventDefault(); q('#play').click(); }
+  else if (k === 'n') step(1);
+  else if (k === 'p') step(-1);
+  else if (k === 's') q('#shuffle').click();
+  else if (k === 'v') q('#vlc').click();
+  else if (k === 'r') q('#repeat').click();
+  else if (k === 'f') q('#favBtn').click();
+  else if (k === 'e') eqToggle();
+  else if (k === '/'){ e.preventDefault(); q('#search').focus(); }
+  else if (e.key === 'ArrowRight' && curEl) curEl.currentTime += 10;
+  else if (e.key === 'ArrowLeft'  && curEl) curEl.currentTime -= 10;
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); q('#vol').value = Math.min(100, +q('#vol').value+5); q('#vol').oninput(); }
+  else if (e.key === 'ArrowDown'){ e.preventDefault(); q('#vol').value = Math.max(0, +q('#vol').value-5); q('#vol').oninput(); }
+});
+
+window.addEventListener('beforeunload', () => { if (curEl) markLast(curEl.currentTime); });
+
+boot();
+</script>
+</body>
+</html>
