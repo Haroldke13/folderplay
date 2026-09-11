@@ -33,7 +33,22 @@ def load_manifest():
         raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
-    return {k: v for k, v in raw.items() if Path(v).is_file()}
+    # Finding 6: a poisoned manifest could redirect a library entry at any
+    # file on disk. Accept a target only if it is a real, non-symlink file
+    # inside the converted tree.
+    root = CONVERTED_ROOT.resolve()
+    out = {}
+    for k, v in raw.items():
+        try:
+            cand = Path(v)
+            if cand.is_symlink() or not cand.is_file():
+                continue
+            real = cand.resolve(strict=True)
+            if real == root or root in real.parents:
+                out[k] = str(real)
+        except OSError:
+            continue
+    return out
 
 
 def should_skip(dirpath: Path, include_trash: bool) -> bool:
@@ -69,6 +84,11 @@ def scan(root: Path, include_trash: bool, manifest=None):
             if not kind:
                 continue
             full = d / name
+            # Finding 6: os.walk(followlinks=False) still lists symlinked FILES.
+            # A symlink named *.mp3 pointing at a private file would otherwise
+            # become streamable through /media.
+            if full.is_symlink():
+                continue
             try:
                 st = full.stat()
             except OSError:
@@ -164,6 +184,7 @@ def main():
     tmp = out.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
     tmp.replace(out)
+    out.chmod(0o600)   # the index lists every file you own
 
     if not args.quiet:
         dt = time.time() - t0

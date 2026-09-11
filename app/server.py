@@ -39,6 +39,10 @@ MAX_POST = 4 * 1024 * 1024
 MAX_NAME = 80
 
 RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
+# Finding 6: /media streams whatever absolute path the index holds. A symlink
+# named *.mp3 pointing at ~/.ssh/id_rsa, or a poisoned converted_manifest.json,
+# would otherwise turn the media route into an arbitrary-file reader.
+ALLOWED_ROOTS = (Path.home().resolve(),)
 CHUNK = 256 * 1024
 
 mimetypes.add_type("audio/mpeg", ".mp3")
@@ -504,7 +508,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise ValueError("unknown action")
         except (ValueError, KeyError, TypeError) as e:
-            return self._json({"error": str(e)}, 400)
+            return self._json({"error": "invalid request"}, 400)
         except OSError as e:
             return self._json({"error": f"could not save: {e}"}, 500)
         out = pls.snapshot()
@@ -535,7 +539,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("nothing to export")
             out, n = write_m3u(title, entries, durations, self.server.library)
         except (ValueError, KeyError, TypeError) as e:
-            return self._json({"error": str(e)}, 400)
+            return self._json({"error": "invalid request"}, 400)
         except OSError as e:
             return self._json({"error": f"could not write export: {e}"}, 500)
         return self._json({"ok": True, "path": str(out), "tracks": n})
@@ -592,7 +596,7 @@ class Handler(BaseHTTPRequestHandler):
                              stdin=subprocess.DEVNULL, start_new_session=True,
                              env={**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":0")})
         except OSError as e:
-            return self._json_out(500, {"error": str(e)})
+            return self._json_out(500, {"error": "could not launch the player"})
         return self._json_out(200, {"ok": True, "player": Path(exe).name,
                                     "file": Path(target).name})
 
@@ -631,6 +635,17 @@ class Handler(BaseHTTPRequestHandler):
         p = Path(path)
         if not p.is_file():
             return self._deny(410, "file no longer on disk")
+        # Refuse symlinks outright, and refuse anything that resolves outside
+        # the library roots, however it got into the index.
+        if p.is_symlink():
+            return self._deny(403, "refusing to serve a symlink")
+        try:
+            real = p.resolve(strict=True)
+        except OSError:
+            return self._deny(410, "file no longer on disk")
+        if not any(real == r or r in real.parents for r in ALLOWED_ROOTS):
+            return self._deny(403, "outside the library")
+        p = real
 
         size = p.stat().st_size
         ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
@@ -640,16 +655,21 @@ class Handler(BaseHTTPRequestHandler):
         status = 200
         if rng:
             m = RANGE_RE.match(rng.strip())
-            if m:
+            # Python refuses int() on >4300-digit strings; an absurd Range
+            # header would otherwise kill the request thread.
+            if m and len(m.group(1)) < 19 and len(m.group(2)) < 19:
                 s, e = m.group(1), m.group(2)
-                if s:
-                    start = int(s)
-                    if e:
-                        end = min(int(e), size - 1)
-                else:
-                    # suffix range: last N bytes
-                    if e:
-                        start = max(0, size - int(e))
+                try:
+                    if s:
+                        start = int(s)
+                        if e:
+                            end = min(int(e), size - 1)
+                    else:
+                        # suffix range: last N bytes
+                        if e:
+                            start = max(0, size - int(e))
+                except ValueError:
+                    return self._deny(400, "bad range")
                 if start >= size or start > end:
                     self.send_response(416)
                     self.send_header("Content-Range", f"bytes */{size}")
@@ -691,6 +711,29 @@ def pick_port(preferred=0):
     return port
 
 
+
+def _exit_when_orphaned(httpd, interval=5.0):
+    """Shut down if our launcher goes away.
+
+    Finding 9: the launcher's EXIT trap is skipped on SIGKILL, and bash defers
+    it while the browser runs in the foreground, so a server could linger with
+    no window - an unmanaged endpoint holding a live token. Re-parenting to
+    init is the reliable signal that our launcher is gone.
+    """
+    import threading
+
+    def watch():
+        start_ppid = os.getppid()
+        while True:
+            time.sleep(interval)
+            ppid = os.getppid()
+            if ppid != start_ppid and ppid == 1:
+                httpd.shutdown()
+                return
+    t = threading.Thread(target=watch, daemon=True)
+    t.start()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=0, help="0 = pick a free port")
@@ -717,6 +760,7 @@ def main():
     else:
         print(f"medialib serving {library.by_id.__len__()} files at {url}", flush=True)
 
+    _exit_when_orphaned(httpd)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

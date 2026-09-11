@@ -172,6 +172,21 @@
     footer{flex-wrap:wrap}
   }
 </style>
+<script>
+// Finding 8: the launch URL carries the token, so Chrome writes it verbatim
+// into the profile's History database. Read it once, then rewrite the address
+// so the secret is not persisted at rest.
+(function(){
+  try{
+    const u = new URL(location.href);
+    if (u.searchParams.has('t')) {
+      window.__TOKEN__ = u.searchParams.get('t');
+      u.searchParams.delete('t');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    }
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -253,7 +268,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const TOKEN = window.__TOKEN__ || new URLSearchParams(location.search).get('t') || '';
 const q = s => document.querySelector(s);
 const audio = q('#audio'), video = q('#video');
 let LIB = null, FOLDERS = [], FILES = [];
