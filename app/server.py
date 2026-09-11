@@ -443,6 +443,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.library.raw, "application/json; charset=utf-8", head_only
             )
 
+        if path == "/api/reindex":
+            if not self._authed(qs):
+                return self._deny(403, "missing or bad token")
+            return self.api_reindex()
+
         if path == "/api/external":
             if not self._authed(qs):
                 return self._deny(403, "missing or bad token")
@@ -470,6 +475,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._deny_host()
         _p = urlparse(self.path)
+        if unquote(_p.path) == "/api/reindex":
+            if not self._authed(parse_qs(_p.query)):
+                return self._deny(403, "missing or bad token")
+            return self.api_reindex()
         if unquote(_p.path) == "/api/external":
             if not self._authed(parse_qs(_p.query)):
                 return self._deny(403, "missing or bad token")
@@ -556,6 +565,21 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
+
+    def api_reindex(self):
+        """Rescan the disk and hot-reload the library without a restart."""
+        try:
+            r = subprocess.run(
+                [sys.executable, str(APP_DIR / "index_media.py"), "--quiet"],
+                capture_output=True, text=True, timeout=900)
+            if r.returncode != 0:
+                return self._json_out(500, {"error": "reindex failed"})
+            self.server.library.load()
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            return self._json_out(500, {"error": "reindex failed"})
+        with self.server.library.lock:
+            n = len(self.server.library.by_id)
+        return self._json_out(200, {"ok": True, "total": n})
 
     def api_external(self, head_only=False):
         """Launch a native player (VLC/mpv) on a track from the index.

@@ -36,6 +36,11 @@
     background:var(--panel2);border:1px solid var(--line);color:var(--dim);
     padding:6px 11px;border-radius:6px;cursor:pointer;font-size:12px;
   }
+  #refresh{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+    width:32px;height:32px;border-radius:7px;cursor:pointer;font-size:15px;flex:0 0 auto}
+  #refresh:hover{border-color:var(--accent)}
+  #refresh.spin{animation:sp 1s linear infinite;pointer-events:none;color:var(--accent2)}
+  @keyframes sp{to{transform:rotate(360deg)}}
   .filters button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
   main{flex:1;display:flex;min-height:0}
@@ -61,7 +66,17 @@
   .newpl:hover{color:var(--fg);border-color:var(--accent)}
 
   section#list{flex:1;overflow-y:auto;min-width:0}
-  #videoWrap{background:#000;display:none;border-bottom:1px solid var(--line)}
+  /* Pin the video to the top of the scrolling list so it stays visible
+     while you scroll through file names. */
+  #videoWrap{background:#000;display:none;border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:6;box-shadow:0 8px 20px rgba(0,0,0,.6)}
+  #videoWrap.mini #video{max-height:30vh}
+  #vidbar{display:none;gap:8px;align-items:center;padding:5px 10px;
+    background:#0b0d13;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--dim)}
+  #videoWrap.show + #vidbar{display:flex}
+  #vidbar button{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+    padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11.5px}
+  #vidbar button:hover{border-color:var(--accent)}
   #videoWrap.show{display:block}
   #video{width:100%;max-height:52vh;display:block;background:#000}
   .bar{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);
@@ -198,6 +213,7 @@
     <button data-k="audio">MP3</button>
     <button data-k="video">MP4</button>
   </div>
+  <button id="refresh" title="Rescan for new files (F5)">⟳</button>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -205,6 +221,11 @@
   <aside id="folders"></aside>
   <section id="list">
     <div id="videoWrap"><video id="video" controls></video></div>
+    <div id="vidbar">
+      <button id="vsmall" title="Shrink the pinned video">Shrink</button>
+      <button id="vpin" title="Stop pinning the video to the top">Unpin</button>
+      <span id="vnow"></span>
+    </div>
     <div class="bar">
       <div class="crumb" id="crumb"></div>
       <div class="acts" id="acts"></div>
@@ -733,6 +754,7 @@ function play(id, seekTo){
   q('#nowTitle').textContent = f.stem;
   q('#nowFolder').textContent = shortPath(f.folder);
   document.title = f.stem + ' — Media Library';
+  { const vn = q('#vnow'); if (vn) vn.textContent = isVid ? f.stem.slice(0, 60) : ''; }
   applyVol();
   syncFav();
   markLast(0);
@@ -1047,6 +1069,47 @@ q('#play').onclick = () => { if (ctx && ctx.state === 'suspended') ctx.resume().
                              curEl.paused ? curEl.play() : curEl.pause(); };
 q('#next').onclick = () => step(1);
 q('#prev').onclick = () => { if (curEl && curEl.currentTime > 3) curEl.currentTime = 0; else step(-1); };
+// Pinned-video controls. Preference persists across launches.
+(function(){
+  const wrap = q('#videoWrap');
+  try {
+    if (localStorage.getItem('medialib.vidmini') === '1') wrap.classList.add('mini');
+    if (localStorage.getItem('medialib.vidpin') === '0') wrap.style.position = 'static';
+  } catch(e){}
+  const sync = () => {
+    const pinned = wrap.style.position !== 'static';
+    q('#vpin').textContent = pinned ? 'Unpin' : 'Pin';
+    q('#vsmall').textContent = wrap.classList.contains('mini') ? 'Enlarge' : 'Shrink';
+  };
+  q('#vsmall').onclick = () => {
+    wrap.classList.toggle('mini');
+    try { localStorage.setItem('medialib.vidmini', wrap.classList.contains('mini') ? '1' : '0'); } catch(e){}
+    sync();
+  };
+  q('#vpin').onclick = () => {
+    const pinned = wrap.style.position !== 'static';
+    wrap.style.position = pinned ? 'static' : 'sticky';
+    try { localStorage.setItem('medialib.vidpin', pinned ? '0' : '1'); } catch(e){}
+    sync();
+  };
+  sync();
+})();
+
+q('#refresh').onclick = async () => {
+  const b = q('#refresh'); b.classList.add('spin');
+  const keepId = curId, keepAt = curEl ? curEl.currentTime : 0;
+  try {
+    const r = await api('/api/reindex', {method:'POST'});
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.error || r.status);
+    await boot();                       // reload the library in place
+    if (keepId !== null && FILES[keepId]) { play(keepId); if (curEl) curEl.currentTime = keepAt; }
+    q('#nowFolder').textContent = 'Library refreshed — ' + (d.total ?? '?') + ' files';
+  } catch (e) {
+    q('#nowFolder').textContent = 'Refresh failed: ' + e.message;
+  } finally { b.classList.remove('spin'); }
+};
+
 q('#vlc').onclick = async () => {
   if (curId === null) { q('#nowFolder').textContent = 'Pick a track first.'; return; }
   q('#nowFolder').textContent = 'Opening in VLC…';
@@ -1081,6 +1144,7 @@ for (const b of document.querySelectorAll('.filters button')){
 }
 
 document.addEventListener('keydown', e => {
+  if (e.key === 'F5') { e.preventDefault(); q('#refresh').click(); return; }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
     if (e.key === 'Escape') { if (e.target.id === 'search') { e.target.value=''; render(); } e.target.blur(); }
     return;

@@ -1,0 +1,17 @@
+[Unit]
+Description=Media Library watcher - reindexes when new media arrives
+Documentation=https://github.com/Haroldke13/folderplay
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/medialib/media_watch.py
+Restart=on-failure
+RestartSec=30
+Nice=10
+# It only ever reads media and writes its own index under ~/.local/share
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
