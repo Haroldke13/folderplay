@@ -8,7 +8,6 @@ Built for Lubuntu/LXQt, works on any Linux desktop.
 
 ![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -163,6 +162,17 @@ your media may live outside `$HOME` — pass `--root`:
 **A server was left running.**
 `pkill -f 'medialib/server.py'`
 
-## License
+## Licence
 
-MIT — see [LICENSE](LICENSE).
+**Proprietary software — all rights reserved.** Copyright © 2026 Joel Harold Onyango.
+
+This repository is not open source. The full terms are in [LICENSE](LICENSE); in
+summary, you may not copy, redistribute, modify, sublicense, publish, re-host or
+commercially exploit this software, in whole or in part, without the prior
+written permission of the copyright holder. Access to this repository does not
+grant any licence beyond reading it.
+
+Previous versions of this repository were published under an open-source licence.
+That change is not retroactive: copies obtained under the earlier licence remain
+governed by its terms. Everything from this commit onward is covered by
+[LICENSE](LICENSE).
