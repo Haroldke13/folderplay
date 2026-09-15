@@ -7,3 +7,23 @@ __pycache__/
 *.pyc
 *.tmp
 .DS_Store
+
+# --------------------------------------------------------------
+# Added: secrets, local state and generated artefacts.
+# NOTE: this does not untrack files already committed —
+#       use git rm --cached for those.
+# --------------------------------------------------------------
+# Environment files, keys and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases
+*.db
+*.sqlite3
+instance/
+
+# Byte-compiled Python
+*.py[cod]
